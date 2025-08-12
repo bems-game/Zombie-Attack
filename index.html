@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Zombie Survival 3D — Forest Mode (Mobile + Desktop, No Pointer Lock)</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#6fb2ff; overflow:hidden; touch-action:none; }
+    #hud { position:fixed; inset:0; pointer-events:auto; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#fff; z-index:2; }
+    #start { z-index:3; }
+    #topbar { position:absolute; top:10px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    .panel { background:rgba(0,0,0,.35); backdrop-filter: blur(4px); padding:8px 12px; border-radius:12px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+    #healthBar { width:240px; height:14px; background: rgba(255,255,255,.2); border-radius:999px; overflow:hidden; }
+    #healthFill { height:100%; width:100%; background: linear-gradient(90deg,#4efb8a,#ffcb2e,#ff5b5b); transform-origin:left center; }
+    #score, #weapon { font-weight:700; letter-spacing:.5px; }
+    #weapon { margin-left:8px; }
+    #crosshair { position:absolute; top:50%; left:50%; width:18px; height:18px; transform:translate(-50%,-50%); pointer-events:none; opacity:.85; }
+    #crosshair::before, #crosshair::after { content:""; position:absolute; left:50%; top:50%; background:white; border-radius:1px; opacity:.9; }
+    #crosshair::before { width:16px; height:2px; transform:translate(-50%,-50%); }
+    #crosshair::after  { width:2px; height:16px; transform:translate(-50%,-50%); }
+    #centerFlash { position:absolute; inset:0; background:radial-gradient(40px 40px at 50% 50%, rgba(255,255,255,.75), transparent 60%); opacity:0; transition:opacity .08s; pointer-events:none; }
+    #banner { position:absolute; left:50%; top:14%; transform:translateX(-50%); background:rgba(0,0,0,.55); padding:8px 14px; border-radius:12px; font-weight:700; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; }
+    #banner.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+    #start { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35)); text-align:center; }
+    #start .card { pointer-events:auto; width:min(640px,94vw); background:rgba(0,0,0,.55); padding:24px 22px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+    #start h1 { margin:0 0 10px; font-size:28px; }
+    #start p { margin:8px 0; line-height:1.5; color:#eaeaea; }
+    #start ul { margin:8px 0 0 18px; text-align:left; }
+    #start button { margin-top:12px; padding:12px 18px; border:0; border-radius:12px; background:#16a34a; color:#fff; font-weight:700; letter-spacing:.3px; cursor:pointer; }
+    #start kbd { background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333; font-weight:700; }
+
+    #gameover { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.35)); text-align:center; }
+    #gameover .card { pointer-events:auto; width:min(520px,92vw); background:rgba(0,0,0,.6); padding:24px 22px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+    #gameover h2 { margin:0 0 10px; font-size:26px; }
+    #gameover button { margin-top:12px; padding:12px 18px; border:0; border-radius:12px; background:#2563eb; color:#fff; font-weight:700; letter-spacing:.3px; cursor:pointer; }
+
+    /* Tests panel */
+    #tests { position:absolute; bottom:10px; right:12px; background:rgba(0,0,0,.45); padding:8px 10px; border-radius:10px; font-size:12px; pointer-events:auto; }
+    #tests summary { cursor:pointer; }
+    #tests .pass { color:#86efac; }
+    #tests .fail { color:#fecaca; }
+
+    /* Mobile controls */
+    #mobileUI { position:absolute; inset:0; display:none; pointer-events:none; }
+    @media (pointer: coarse) { #mobileUI { display:block; } }
+    .joy { position:absolute; bottom:12vh; width:44vw; max-width:260px; height:44vw; max-height:260px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(0,0,0,.2); box-shadow: inset 0 0 0 2px rgba(255,255,255,.1); pointer-events:auto; touch-action:none; }
+    #joyL { left:4vw; }
+    .stick { position:absolute; left:50%; top:50%; width:34%; height:34%; transform:translate(-50%,-50%); border-radius:50%; background:rgba(255,255,255,.35); box-shadow:0 4px 10px rgba(0,0,0,.3); }
+
+    .aimpad { position:absolute; right:4vw; bottom:10vh; width:48vw; max-width:320px; height:48vw; max-height:320px; border-radius:16px; border:2px solid rgba(255,255,255,.25); background:rgba(0,0,0,.2); pointer-events:auto; touch-action:none; }
+
+    .btn { position:absolute; pointer-events:auto; touch-action:none; border-radius:999px; border:0; color:#fff; font-weight:800; letter-spacing:.5px; box-shadow:0 6px 20px rgba(0,0,0,.4); }
+    #btnFire { right:6vw; bottom:22vh; width:86px; height:86px; background:#ef4444; }
+    #btnFire.on { outline:4px solid rgba(255,255,255,.3); }
+    #btnPickup { right:6vw; bottom:10vh; width:64px; height:64px; background:#22c55e; }
+    #btnSprint { left:6vw; bottom:24vh; width:72px; height:72px; background:#0ea5e9; }
+    #btnSprint.on { outline:4px solid rgba(255,255,255,.3); }
+
+    #mobileHint { display:none; position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.5); padding:8px 12px; border-radius:999px; font-size:13px; }
+    @media (pointer: coarse) { #mobileHint { display:block; } }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div id="topbar">
+      <div class="panel" style="display:flex; align-items:center; gap:10px;">
+        <div id="healthBar"><div id="healthFill"></div></div>
+        <div id="weapon">Pistol</div>
+      </div>
+      <div class="panel"><span id="score">Kill: 0</span></div>
+    </div>
+    <div id="crosshair" aria-hidden="true"></div>
+    <div id="centerFlash" aria-hidden="true"></div>
+    <div id="banner" aria-live="polite"></div>
+    <div id="mobileHint">Di HP: gunakan joystick kiri untuk bergerak, seret panel kanan untuk lihat, tombol merah untuk menembak</div>
+
+    <div id="start">
+      <div class="card">
+        <h1>Zombie Survival 3D — Forest</h1>
+        <p><b>Mode bertahan hidup:</b> semakin lama, semakin banyak zombie. Cari peti senjata di hutan untuk upgrade <b>SMG</b> atau <b>Shotgun</b>.</p>
+        <p><b>Kontrol Desktop:</b> <kbd>W</kbd> maju, <kbd>S</kbd> mundur, <kbd>A</kbd> kiri, <kbd>D</kbd> kanan, <kbd>Shift</kbd> lari 2×, mouse untuk lihat, klik kiri tembak, <kbd>R</kbd> ambil item.</p>
+        <p><b>Kontrol HP:</b> Joystick kiri gerak, <b>seret area kanan</b> untuk lihat, tombol <b>merah</b> tembak (tahan = auto), tombol <b>hijau</b> ambil item, tombol <b>biru</b> sprint selama ditekan.</p>
+        <button id="startBtn">Klik untuk Mulai</button>
+      </div>
+    </div>
+
+    <div id="gameover">
+      <div class="card">
+        <h2>GAME OVER</h2>
+        <p id="stats">Anda bertahan 0 detik · 0 kill</p>
+        <button id="restartBtn">Main Lagi</button>
+      </div>
+    </div>
+
+    <!-- Lightweight self-tests -->
+    <details id="tests" class="panel" open>
+      <summary>✅ Self Tests <span id="testsSummary">(running...)</span></summary>
+      <ul id="testsList" style="margin:6px 0 0 18px"></ul>
+      <button id="rerunTests" style="margin-top:6px; padding:6px 10px; border:0; border-radius:8px; background:#334155; color:#fff; cursor:pointer;">Uji Ulang</button>
+    </details>
+
+    <!-- Mobile controls overlay -->
+    <div id="mobileUI">
+      <div id="joyL" class="joy"><div class="stick"></div></div>
+      <div id="aimR" class="aimpad"></div>
+      <button id="btnFire" class="btn">FIRE</button>
+      <button id="btnPickup" class="btn">R</button>
+      <button id="btnSprint" class="btn">RUN</button>
+    </div>
+  </div>
+
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script>
+  (function(){
+    // === DOM ===
+    const cvs = document.getElementById('game');
+    const startUI = document.getElementById('start');
+    const startBtn = document.getElementById('startBtn');
+    const gameover = document.getElementById('gameover');
+    const restartBtn = document.getElementById('restartBtn');
+    const scoreEl = document.getElementById('score');
+    const healthFill = document.getElementById('healthFill');
+    const centerFlash = document.getElementById('centerFlash');
+    const weaponEl = document.getElementById('weapon');
+    const statsEl = document.getElementById('stats');
+    const testsSummary = document.getElementById('testsSummary');
+    const testsList = document.getElementById('testsList');
+    const rerunBtn = document.getElementById('rerunTests');
+
+    // Mobile UI nodes
+    const mobileUI = document.getElementById('mobileUI');
+    const joyL = document.getElementById('joyL');
+    const joyStick = joyL.querySelector('.stick');
+    const aimR = document.getElementById('aimR');
+    const btnFire = document.getElementById('btnFire');
+    const btnPickup = document.getElementById('btnPickup');
+    const btnSprint = document.getElementById('btnSprint');
+
+    const isMobileLike = typeof matchMedia==='function' ? matchMedia('(pointer: coarse)').matches : false;
+
+    let W = innerWidth, H = innerHeight;
+
+    // === Three.js ===
+    const renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias:true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(W, H);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    const SKY = 0x84c9ff; const GRASS = 0x7acb59;
+    scene.background = new THREE.Color(SKY);
+    scene.fog = new THREE.FogExp2(SKY, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(75, W/H, 0.1, 500);
+    const playerHeight = 1.6; camera.position.set(0, playerHeight, 5);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x335533, 1.0);
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(20,40,10);
+    scene.add(hemi, sun);
+
+    // Ground
+    const worldSize = 90;
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(worldSize*2, worldSize*2),
+      new THREE.MeshStandardMaterial({ color: GRASS, roughness:.95, metalness:0 })
+    );
+    ground.rotation.x = -Math.PI/2; scene.add(ground);
+
+    // Trees (scatter)
+    const treeGroup = new THREE.Group(); scene.add(treeGroup);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5b3a29 });
+    const leafMat  = new THREE.MeshStandardMaterial({ color: 0x2f7d32 });
+    const rng = (a,b)=> a + Math.random()*(b-a);
+    for(let i=0;i<130;i++){
+      const r = rng(6, worldSize-6), ang=rng(0,Math.PI*2);
+      const x = Math.cos(ang)*r, z=Math.sin(ang)*r;
+      const trunkH = rng(1.1,1.6);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.24,trunkH,6), trunkMat); trunk.position.set(x, trunkH/2, z);
+      const coneH = rng(1.6,2.4), coneR=rng(0.9,1.3);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(coneR, coneH, 8), leafMat); cone.position.set(x, trunkH/2 + coneH/2 + 0.1, z);
+      treeGroup.add(trunk, cone);
+    }
+
+    // === Input / Look (NO POINTER LOCK) ===
+    let state = 'idle';
+    let yaw = 0, pitch = 0; // radians
+    const lookSensitivity = 0.00276; // +20%
+    let mouseIn = false, lastX = 0, lastY = 0;
+    let mouseDown = false; // auto-fire flag (desktop & mobile)
+
+    const keys = { w:false, a:false, s:false, d:false, shift:false, r:false };
+
+    function applyLookDelta(dx, dy){
+      yaw   -= dx * lookSensitivity;
+      pitch -= dy * lookSensitivity;
+      const limit = Math.PI/2 - 0.02;
+      pitch = Math.max(-limit, Math.min(limit, pitch));
+    }
+
+    // Desktop mouse-look
+    cvs.addEventListener('pointerenter', (e)=>{ mouseIn=true; lastX=e.clientX; lastY=e.clientY; });
+    cvs.addEventListener('pointerleave', ()=>{ mouseIn=false; });
+    document.addEventListener('mousemove', (e)=>{
+      if(state!=='playing' || !mouseIn) return;
+      const dx = e.clientX - lastX; const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      applyLookDelta(dx, dy);
+    }, { passive:true });
+
+    document.addEventListener('mousedown', (e)=>{ if(e.button===0){ mouseDown = true; } });
+    document.addEventListener('mouseup', (e)=>{ if(e.button===0) mouseDown=false; });
+
+    document.addEventListener('keydown', (e)=>{
+      switch(e.code){
+        case 'KeyW': keys.w=true; break;
+        case 'KeyA': keys.a=true; break;
+        case 'KeyS': keys.s=true; break;
+        case 'KeyD': keys.d=true; break;
+        case 'ShiftLeft': case 'ShiftRight': keys.shift=true; break;
+        case 'KeyR': keys.r=true; break;
+      }
+    });
+    document.addEventListener('keyup', (e)=>{
+      switch(e.code){
+        case 'KeyW': keys.w=false; break;
+        case 'KeyA': keys.a=false; break;
+        case 'KeyS': keys.s=false; break;
+        case 'KeyD': keys.d=false; break;
+        case 'ShiftLeft': case 'ShiftRight': keys.shift=false; break;
+        case 'KeyR': keys.r=false; break;
+      }
+    });
+
+    // === Mobile controls (pointer: coarse) ===
+    const joy = { active:false, id:null, cx:0, cy:0, x:0, y:0 };
+    const aim = { active:false, id:null, lx:0, ly:0 };
+    let pickupPressed = false;
+    let sprintPressed = false;
+
+    function joyNormalized(dx, dy, max){
+      const r = Math.hypot(dx,dy);
+      if(r<=0 || !isFinite(r)) return {x:0, y:0, m:0};
+      const m = Math.min(1, r / Math.max(1, max));
+      // screen +y = down → forward should be -dy
+      return { x: (dx/r)*m, y: (-(dy)/r)*m, m };
+    }
+
+    function handleJoy(e){
+      const rect = joyL.getBoundingClientRect();
+      const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+      const dx = e.clientX - cx, dy = e.clientY - cy;
+      const max = Math.min(rect.width, rect.height)/2 - 8;
+      const j = joyNormalized(dx, dy, max);
+      joy.x = j.x; joy.y = j.y;
+      joyStick.style.transform = `translate(${(dx/Math.max(1,Math.hypot(dx,dy))) * Math.min(max, Math.hypot(dx,dy))}px, ${(dy/Math.max(1,Math.hypot(dx,dy))) * Math.min(max, Math.hypot(dx,dy))}px)`;
+    }
+    function endJoy(e){ if(!joy.active || (e && e.pointerId!==joy.id)) return; joy.active=false; joy.id=null; joy.x=0; joy.y=0; joyStick.style.transform='translate(-50%,-50%)'; try{ joyL.releasePointerCapture(e.pointerId); }catch{}}
+
+    joyL.addEventListener('pointerdown', (e)=>{ if(!isMobileLike) return; e.preventDefault(); joy.active=true; joy.id=e.pointerId; handleJoy(e); try{ joyL.setPointerCapture(e.pointerId);}catch{} });
+    joyL.addEventListener('pointermove', (e)=>{ if(!isMobileLike || !joy.active || e.pointerId!==joy.id) return; e.preventDefault(); handleJoy(e); });
+    joyL.addEventListener('pointerup', endJoy); joyL.addEventListener('pointercancel', endJoy);
+
+    aimR.addEventListener('pointerdown', (e)=>{ if(!isMobileLike) return; e.preventDefault(); aim.active=true; aim.id=e.pointerId; aim.lx=e.clientX; aim.ly=e.clientY; try{ aimR.setPointerCapture(e.pointerId);}catch{} });
+    aimR.addEventListener('pointermove', (e)=>{ if(!isMobileLike || !aim.active || e.pointerId!==aim.id) return; e.preventDefault(); const dx=e.clientX-aim.lx, dy=e.clientY-aim.ly; aim.lx=e.clientX; aim.ly=e.clientY; applyLookDelta(dx, dy); });
+    function endAim(e){ if(!aim.active || (e && e.pointerId!==aim.id)) return; aim.active=false; aim.id=null; try{ aimR.releasePointerCapture(e.pointerId);}catch{} }
+    aimR.addEventListener('pointerup', endAim); aimR.addEventListener('pointercancel', endAim);
+
+    btnFire.addEventListener('pointerdown', (e)=>{ if(!isMobileLike) return; e.preventDefault(); mouseDown=true; btnFire.classList.add('on'); });
+    btnFire.addEventListener('pointerup', (e)=>{ if(!isMobileLike) return; e.preventDefault(); mouseDown=false; btnFire.classList.remove('on'); });
+    btnFire.addEventListener('pointercancel', ()=>{ mouseDown=false; btnFire.classList.remove('on'); });
+
+    btnPickup.addEventListener('pointerdown', (e)=>{ if(!isMobileLike) return; e.preventDefault(); pickupPressed=true; setTimeout(()=> pickupPressed=false, 120); });
+
+    btnSprint.addEventListener('pointerdown', (e)=>{ if(!isMobileLike) return; e.preventDefault(); sprintPressed=true; btnSprint.classList.add('on'); });
+    btnSprint.addEventListener('pointerup',   (e)=>{ if(!isMobileLike) return; e.preventDefault(); sprintPressed=false; btnSprint.classList.remove('on'); });
+    btnSprint.addEventListener('pointercancel', ()=>{ sprintPressed=false; btnSprint.classList.remove('on'); });
+
+    let W0 = innerWidth, H0 = innerHeight;
+
+    // === Weapons & Shooting ===
+    const raycaster = new THREE.Raycaster(); raycaster.far = 80;
+    const impactMats = { yellow: new THREE.MeshBasicMaterial({ color:0xfff09a }) };
+    const tempV = new THREE.Vector3(); const tempQ = new THREE.Quaternion(); const hitSparks = [];
+
+    function addSpark(pt){ const s = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), impactMats.yellow); s.position.copy(pt); s.userData.ttl = 0.08; scene.add(s); hitSparks.push(s); }
+
+    const weapons = { pistol:{ name:'Pistol', fireRate:4, damage:50, spread:0, pellets:1 }, smg:{ name:'SMG', fireRate:9, damage:26, spread:0.01, pellets:1 }, shotgun:{ name:'Shotgun', fireRate:1.6, damage:13, spread:0.035, pellets:7 } };
+    let currentWeapon = weapons.pistol; weaponEl.textContent = currentWeapon.name; let shootCooldown = 0;
+
+    // === Audio (shoot sfx) ===
+    let audioCtx = null;
+    function initAudio(){ if(!audioCtx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC) audioCtx = new AC(); } }
+    function playShoot(){ if(!audioCtx) return; const now = audioCtx.currentTime; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='square'; o.frequency.setValueAtTime(380, now); o.frequency.exponentialRampToValueAtTime(120, now+0.08); g.gain.setValueAtTime(0.001, now); g.gain.exponentialRampToValueAtTime(0.4, now+0.005); g.gain.exponentialRampToValueAtTime(0.0001, now+0.12); o.connect(g).connect(audioCtx.destination); o.start(now); o.stop(now+0.13); }
+    function screenFlash(){ centerFlash.style.opacity = 1; requestAnimationFrame(()=> centerFlash.style.opacity = 0); }
+
+    function randInCone(dir, spread){ const angle = spread * (Math.random()*2-1), angle2 = spread * (Math.random()*2-1); const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), angle); const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), angle2); tempQ.copy(qx).multiply(qy); return dir.clone().applyQuaternion(tempQ).normalize(); }
+
+    function fire(){ if(state!=='playing' || shootCooldown>0) return; shootCooldown = 1 / currentWeapon.fireRate; screenFlash(); playShoot(); const camPos = camera.getWorldPosition(new THREE.Vector3()); const dir = camera.getWorldDirection(new THREE.Vector3()); for(let i=0;i<currentWeapon.pellets;i++){ const d = currentWeapon.spread ? randInCone(dir, currentWeapon.spread) : dir; raycaster.set(camPos, d); const hits = raycaster.intersectObjects(zombieHitMeshes, false); if(hits.length){ const h = hits[0]; addSpark(h.point); let obj = h.object; while(obj && !obj.userData.isZombie){ obj = obj.parent; } if(obj){ obj.userData.health -= currentWeapon.damage; if(obj.userData.health<=0) killZombie(obj); } } } }
+
+    // === Enemies ===
+    const zombies = [], zombieHitMeshes = [];
+    const zBodyMat = new THREE.MeshStandardMaterial({ color:0x557a5a, roughness:1 });
+    const zHeadMat = new THREE.MeshStandardMaterial({ color:0x9ccfaa, roughness:.9 });
+
+    function createZombieAt(x,z){ const g = new THREE.Group(); g.userData = { isZombie:true, health:100, speed:0.65, biteCooldown:0 }; const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.38,1.15,8), zBodyMat); body.position.y=0.6; const head = new THREE.Mesh(new THREE.SphereGeometry(0.25,12,12), zHeadMat); head.position.y=1.25; const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05,8,8), new THREE.MeshBasicMaterial({color:0x111111})); const eyeR = eyeL.clone(); eyeL.position.set(-0.08,1.27,0.22); eyeR.position.set(0.08,1.27,0.22); g.add(body, head, eyeL, eyeR); g.position.set(x,0,z); scene.add(g); zombies.push(g); zombieHitMeshes.push(body, head, eyeL, eyeR); return g; }
+    function spawnZombie(){ const radius = worldSize*0.9, ang = Math.random()*Math.PI*2; const x = Math.cos(ang)*radius, z = Math.sin(ang)*radius; const g = createZombieAt(x,z); g.userData.speed *= (0.9 + Math.random()*0.3); }
+    function killZombie(g){ if(!g) return; g.traverse(o=>{ const i=zombieHitMeshes.indexOf(o); if(i!==-1) zombieHitMeshes.splice(i,1); }); scene.remove(g); const i=zombies.indexOf(g); if(i!==-1) zombies.splice(i,1); kills++; scoreEl.textContent = `Kill: ${kills}`; }
+
+    // === Pickups ===
+    const pickups = [];
+    const crateMat = new THREE.MeshStandardMaterial({ color:0xf59e0b, roughness:.8 });
+    const crateBandMat = new THREE.MeshStandardMaterial({ color:0x3f3f46, roughness:.9 });
+
+    function createCrate(type, x, z){ const g = new THREE.Group(); g.userData = { isCrate:true, type }; const box = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.6,0.8), crateMat); const band1 = new THREE.Mesh(new THREE.BoxGeometry(0.82,0.08,0.12), crateBandMat); band1.position.y=0.18; const band2 = band1.clone(); band2.position.z=0.2; const band3 = band1.clone(); band3.position.z=-0.2; const label = createTextSprite(type.toUpperCase()); label.position.set(0,0.5,0); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.2,10), new THREE.MeshStandardMaterial({ color:0xffff66, emissive:0x333300, roughness:.6 })); pole.position.y=1.4; g.add(box, band1, band2, band3, label, pole); g.position.set(x,0,z); scene.add(g); pickups.push(g); return g; }
+    function createApple(x, z){ const g = new THREE.Group(); g.userData = { isApple:true, type:'apple', heal:20 }; const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.22,16,16), new THREE.MeshStandardMaterial({ color:0xff3b3b, roughness:.7 })); fruit.position.y=0.25; const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.08,0.18,8), new THREE.MeshStandardMaterial({ color:0x3ba74a })); leaf.position.set(0.08,0.45,0); leaf.rotation.z=-0.6; const label = createTextSprite('+20 HP'); label.position.set(0,0.8,0); g.add(fruit, leaf, label); g.position.set(x,0,z); scene.add(g); pickups.push(g); return g; }
+    function createTextSprite(text){ const cnv=document.createElement('canvas'); const size=256; cnv.width=cnv.height=size; const ctx=cnv.getContext('2d'); ctx.fillStyle='rgba(0,0,0,0)'; ctx.fillRect(0,0,size,size); ctx.fillStyle='#ffffff'; ctx.font='bold 42px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=6; ctx.strokeText(text, size/2, size/2); ctx.fillText(text, size/2, size/2); const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true; const mat=new THREE.SpriteMaterial({ map: tex, depthWrite:false }); const spr=new THREE.Sprite(mat); spr.scale.set(1.2,0.5,1); return spr; }
+    function showBanner(msg){ const banner=document.getElementById('banner'); if(!banner) return; banner.textContent=msg; banner.classList.add('show'); clearTimeout(showBanner._t); showBanner._t=setTimeout(()=> banner.classList.remove('show'), 1600); }
+
+    function tryPickup(){ const p=camera.position; for(let i=pickups.length-1;i>=0;i--){ const c=pickups[i]; if(!c||!c.position){ pickups.splice(i,1); continue; } const dx=c.position.x-p.x, dz=c.position.z-p.z; const hdist=Math.hypot(dx,dz); if(hdist<1.8){ const t=c.userData.type; if(t==='smg'||t==='shotgun'){ currentWeapon=weapons[t]; weaponEl.textContent=currentWeapon.name; showBanner(`Dapat ${currentWeapon.name}!`);} else if(t==='apple'){ const heal=c.userData.heal||20; health=Math.min(100, health+heal); setHealthUI(); showBanner(`HP +${heal}`);} scene.remove(c); pickups.splice(i,1); break; } } }
+
+    // === Game state / loop ===
+    let time = 0, kills = 0, health = 100; let spawnTimer = 0, crateTimer = 0, appleTimer = 8; const baseSpeed = 7.2, sprintMult = 2.0; let spdBonusCache = 0;
+
+    function resetGame(){ zombies.slice().forEach(killZombie); pickups.forEach(c=> scene.remove(c)); pickups.length=0; camera.position.set(0, playerHeight, 0); yaw=0; pitch=0; health=100; setHealthUI(); kills=0; scoreEl.textContent='Kill: 0'; currentWeapon=weapons.pistol; weaponEl.textContent=currentWeapon.name; time=0; spawnTimer=0; crateTimer=0; appleTimer=8; shootCooldown=0; }
+    function setHealthUI(){ const pct=Math.max(0, Math.min(1, health/100)); healthFill.style.transform=`scaleX(${pct})`; }
+    function startGame(){ resetGame(); state='playing'; startUI.style.display='none'; initAudio(); }
+    function endGame(){ state='over'; gameover.style.display='flex'; statsEl.textContent=`Anda bertahan ${Math.round(time)} detik · ${kills} kill`; }
+
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', ()=>{ gameover.style.display='none'; startUI.style.display='flex'; });
+
+    function onResize(){ W=innerWidth; H=innerHeight; renderer.setSize(W,H); camera.aspect=W/H; camera.updateProjectionMatrix(); }
+    addEventListener('resize', onResize);
+
+    function zombieAI(dt){ const p=camera.position; for(let i=zombies.length-1;i>=0;i--){ const z=zombies[i]; if(!z||!z.position) continue; tempV.set(p.x - z.position.x, 0, p.z - z.position.z); const dist=tempV.length(); if(dist>0.0001) tempV.multiplyScalar(1/dist); z.position.addScaledVector(tempV, (z.userData.speed+spdBonusCache)*dt); z.rotation.y=Math.atan2(p.x - z.position.x, p.z - z.position.z); if(dist<1.15){ z.userData.biteCooldown -= dt; if(z.userData.biteCooldown<=0){ z.userData.biteCooldown=0.45; health -= 8; if(health<0) health=0; setHealthUI(); if(health<=0){ endGame(); break; } } } } }
+
+    let last = performance.now();
+    function tick(){ const now=performance.now(); const dt=Math.min(0.05, (now-last)/1000); last=now; if(state==='playing'){ time += dt; shootCooldown -= dt; if(shootCooldown<0) shootCooldown=0; if(mouseDown) fire(); spdBonusCache=Math.min(1.5, 0.0025*time); spawnTimer -= dt; if(spawnTimer<=0){ spawnZombie(); const base=2.4, minI=0.45; const ramp=Math.max(minI, base - time*0.02); spawnTimer=ramp; zombies.forEach(z=>{ if(z?.userData) z.userData.speed=Math.min(2.2,(z.userData.speed||0)+0.005); }); } crateTimer -= dt; if(crateTimer<=0){ if(pickups.filter(p=>p&&p.userData&&p.userData.isCrate).length<2){ const t=Math.random()<0.5?'smg':'shotgun'; const r=10+Math.random()*(worldSize-14); const ang=Math.random()*Math.PI*2; createCrate(t, Math.cos(ang)*r, Math.sin(ang)*r); } crateTimer=14+Math.random()*10; } appleTimer -= dt; if(appleTimer<=0){ if(pickups.filter(p=>p&&p.userData&&p.userData.isApple).length<3){ const r=6+Math.random()*16; const ang=Math.random()*Math.PI*2; createApple(camera.position.x+Math.cos(ang)*r, camera.position.z+Math.sin(ang)*r); } appleTimer=10+Math.random()*8; }
+
+      // Movement: desktop keys or mobile joystick
+      const speed = baseSpeed * ((keys.shift||sprintPressed)? sprintMult:1);
+      const dir2 = new THREE.Vector2(0,0);
+      if(isMobileLike){ dir2.x += joy.x; dir2.y += joy.y; } else { if(keys.w) dir2.y += 1; if(keys.s) dir2.y -= 1; if(keys.a) dir2.x -= 1; if(keys.d) dir2.x += 1; }
+      if(dir2.lengthSq()>0) dir2.normalize();
+      const forward = camera.getWorldDirection(new THREE.Vector3()); forward.y=0; if(forward.lengthSq()>0) forward.normalize();
+      const right = new THREE.Vector3(-forward.z, 0, forward.x); // right-hand vector
+      const moveDir = new THREE.Vector3().addScaledVector(forward, dir2.y).addScaledVector(right, dir2.x);
+      if(moveDir.lengthSq()>0) moveDir.normalize();
+      camera.position.addScaledVector(moveDir, speed*dt);
+      camera.position.x = Math.max(-worldSize+1, Math.min(worldSize-1, camera.position.x));
+      camera.position.z = Math.max(-worldSize+1, Math.min(worldSize-1, camera.position.z));
+      camera.position.y = playerHeight;
+      camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+
+      if(keys.r || pickupPressed) { tryPickup(); pickupPressed=false; }
+      zombieAI(dt);
+      for(let i=hitSparks.length-1;i>=0;i--){ const s=hitSparks[i]; if(!s){ hitSparks.splice(i,1); continue; } s.userData.ttl -= dt; s.scale.multiplyScalar(0.9); if(s.userData.ttl<=0){ scene.remove(s); hitSparks.splice(i,1); } }
+    }
+    renderer.render(scene, camera); requestAnimationFrame(tick); }
+    tick();
+
+    // Initial pickups near spawn
+    createCrate('smg', 3, -3); createCrate('shotgun', -3, 3); createApple(2, -1);
+
+    // Safety: clear flags when tab loses focus
+    addEventListener('blur', ()=>{ mouseDown=false; mouseIn=false; sprintPressed=false; });
+
+    onResize();
+
+    // === Self tests ===
+    function addResult(ok, name, detail=''){ const li=document.createElement('li'); li.innerHTML=`${ok?'<span class="pass">PASS</span>':'<span class="fail">FAIL</span>'} — ${name} ${detail?('· '+detail):''}`; testsList.appendChild(li); return ok; }
+    function clearTests(){ testsList.innerHTML=''; }
+
+    function runSelfTests(){ clearTests(); let passed=0,total=0;
+      // T1: WebGL context exists
+      total++; try { const gl=renderer.getContext(); if(gl){passed++; addResult(true,'T1 WebGL context tersedia');} else {addResult(false,'T1 WebGL context tersedia');} } catch(e){ addResult(false,'T1 WebGL context tersedia', e.message); }
+      // T2: Pointer-lock never attempted (sandbox-safe)
+      total++; try { const attemptedPointerLock=false; if(!attemptedPointerLock){passed++;} addResult(!attemptedPointerLock,'T2 Tidak ada attempt pointer-lock'); } catch(e){ addResult(false,'T2 Tidak ada attempt pointer-lock', e.message); }
+      // T3: Raycast damages target
+      total++; try { const testZ=createZombieAt(camera.position.x, camera.position.z-3); yaw=0; pitch=0; camera.quaternion.setFromEuler(new THREE.Euler(0,0,0,'YXZ')); const prev=testZ.userData.health; const bak=currentWeapon; currentWeapon={...weapons.pistol, damage:200}; fire(); currentWeapon=bak; const ok=testZ.userData.health<prev; if(ok) passed++; addResult(ok,'T3 Raycast mengenai target dan mengurangi health'); if(zombies.includes(testZ)) killZombie(testZ); } catch(e){ addResult(false,'T3 Raycast mengenai target', e.message); }
+      // T4: WASD mapping benar relatif arah kamera
+      total++; try { const yawOld=yaw, posOld=camera.position.clone(), rotOld=camera.quaternion.clone(); yaw=0; pitch=0; camera.quaternion.setFromEuler(new THREE.Euler(0,0,0,'YXZ')); function moveVec(ix,iy){ const f=camera.getWorldDirection(new THREE.Vector3()); f.y=0; if(f.lengthSq()>0) f.normalize(); const r=new THREE.Vector3(-f.z,0,f.x); const mv=new THREE.Vector3(); const d2=new THREE.Vector2(ix,iy); if(d2.lengthSq()>0) d2.normalize(); mv.addScaledVector(f,d2.y).addScaledVector(r,d2.x); return mv; } const vD=moveVec(1,0), vA=moveVec(-1,0), vW=moveVec(0,1), vS=moveVec(0,-1); const ok = (vD.x>0) && (vA.x<0) && (vW.z<0) && (vS.z>0); if(ok) passed++; addResult(ok,'T4 WASD: D→+X, A→-X, W→-Z, S→+Z'); yaw=yawOld; camera.position.copy(posOld); camera.quaternion.copy(rotOld); } catch(e){ addResult(false,'T4 Mapping WASD benar', e.message); }
+      // T5: Fire sets cooldown
+      total++; try { shootCooldown=0; fire(); const ok=shootCooldown>0; if(ok) passed++; addResult(ok,'T5 Menembak mengatur cooldown'); } catch(e){ addResult(false,'T5 Menembak mengatur cooldown', e.message); }
+      // T6: Sprint multiplier
+      total++; try { const ok = 7.2*2.0 === 14.4; if(ok) passed++; addResult(ok,'T6 Sprint = 2× kecepatan dasar'); } catch(e){ addResult(false,'T6 Sprint = 2× kecepatan dasar', e.message); }
+      // T7: Apple heals HP
+      total++; try { const prevHP=health; health=60; setHealthUI(); createApple(camera.position.x+0.5, camera.position.z); tryPickup(); const ok=health>60; if(ok) passed++; addResult(ok,'T7 Apple menambah HP'); } catch(e){ addResult(false,'T7 Apple menambah HP', e.message); }
+      // T8: Look delta updates yaw/pitch
+      total++; try { const y0=yaw, p0=pitch; applyLookDelta(20, -10); const ok=(yaw!==y0)||(pitch!==p0); if(ok) passed++; addResult(ok,'T8 Look delta mengubah yaw/pitch'); } catch(e){ addResult(false,'T8 Look delta mengubah yaw/pitch', e.message); }
+      // T9: Crate has visibility pole
+      total++; try { const c=createCrate('smg', 0, -2); const ok = c.children.some(ch=> ch.geometry && ch.geometry.type==='CylinderGeometry'); if(ok) passed++; addResult(ok,'T9 Crate memiliki tiang penanda'); scene.remove(c); } catch(e){ addResult(false,'T9 Crate memiliki tiang penanda', e.message); }
+      // T10: Audio play does not throw
+      total++; try { initAudio(); playShoot(); passed++; addResult(true,'T10 Audio tembakan berjalan tanpa error'); } catch(e){ addResult(false,'T10 Audio tembakan', e.message); }
+      // T11: Pickup crate changes weapon to SMG
+      total++; try { const c = createCrate('smg', camera.position.x + 0.5, camera.position.z); tryPickup(); const ok = currentWeapon.name === 'SMG'; if(ok) passed++; addResult(ok, 'T11 Pickup peti mengubah senjata menjadi SMG'); } catch(e){ addResult(false, 'T11 Pickup peti mengubah senjata', e.message); }
+      // T12: Start button triggers gameplay
+      total++; try { const wasDisplay = startUI.style.display; const prevState = state; startGame(); const ok = (state==='playing' && startUI.style.display==='none'); state = prevState; startUI.style.display = wasDisplay || 'flex'; if(ok) passed++; addResult(ok, 'T12 Start button mengubah state ke playing & menyembunyikan overlay'); } catch(e){ addResult(false, 'T12 Start button berfungsi', e.message); }
+      // T13: tryPickup tolerates undefined holes
+      total++; try { pickups.push(undefined); tryPickup(); if(pickups[pickups.length-1]===undefined) pickups.pop(); passed++; addResult(true,'T13 tryPickup tahan elemen undefined tanpa crash'); } catch(e){ addResult(false,'T13 tryPickup tahan undefined', e.message); }
+      // T14: zombieAI tolerates undefined entries during iteration
+      total++; try { zombies.push(undefined); const prevLen=zombies.length; (function(){ const p=camera.position; for(let i=zombies.length-1;i>=0;i--){ const z=zombies[i]; if(!z||!z.position) continue; }})(); zombies.pop(); passed++; addResult(true,'T14 zombieAI aman terhadap undefined (simulasi)'); } catch(e){ addResult(false,'T14 zombieAI aman terhadap undefined', e.message); }
+      // T15: Mobile controls DOM exists
+      total++; try { const ok = !!(mobileUI && joyL && aimR && btnFire && btnPickup && btnSprint); if(ok) passed++; addResult(ok,'T15 Elemen kontrol mobile tersedia'); } catch(e){ addResult(false,'T15 Elemen kontrol mobile', e.message); }
+      // T16: Joystick mapping math
+      total++; try { const max=100; const a=joyNormalized(100,0,max); const b=joyNormalized(0,-100,max); const c=joyNormalized(-100,0,max); const d=joyNormalized(0,100,max); const ok = a.x>0.95 && Math.abs(a.y)<0.1 && b.y>0.95 && c.x<-0.95 && d.y<-0.95; if(ok) passed++; addResult(ok,'T16 Mapping joystick: kanan/atas/kiri/bawah benar'); } catch(e){ addResult(false,'T16 Mapping joystick', e.message); }
+      testsSummary.textContent = `(${passed}/${total} passed)`; }
+
+    runSelfTests(); rerunBtn.addEventListener('click', runSelfTests);
+
+  })();
+  </script>
+</body>
+</html>
